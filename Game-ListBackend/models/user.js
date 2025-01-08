@@ -2,12 +2,7 @@
 const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class User extends Model {
-    /**
-     * Associations can be defined here if needed later.
-     */
     static associate(models) {
-      // Example association if needed later:
-      // User.hasMany(models.Wishlist, { foreignKey: 'user_id' });
     }
   }
   User.init(
@@ -16,9 +11,6 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false,
         unique: true,
-        validate: {
-          isEmail: true, // Ensures email format is valid
-        },
       },
       username: {
         type: DataTypes.STRING,
@@ -29,10 +21,7 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.STRING,
         allowNull: false,
       },
-      profile_image: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
+      profile_image: DataTypes.STRING,
       notification_preference: {
         type: DataTypes.JSON,
         defaultValue: [],
@@ -41,25 +30,19 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.JSON,
         defaultValue: [],
       },
-      last_login: {
-        type: DataTypes.DATE,
-        allowNull: true,
-      },
+      last_login: DataTypes.DATE,
       is_verified: {
         type: DataTypes.BOOLEAN,
         defaultValue: false,
       },
-      reset_token: {
-        type: DataTypes.STRING,
-        allowNull: true,
-      },
+      reset_token: DataTypes.STRING,
     },
     {
       sequelize,
       modelName: 'User',
-      tableName: 'users', // Explicitly set table name
-      underscored: true,  // Use snake_case in DB
-      timestamps: true,   // Enable default timestamps: createdAt and updatedAt
+      tableName: 'Users', 
+      timestamps: true,  
+      underscored: false, 
     }
   );
   return User;
