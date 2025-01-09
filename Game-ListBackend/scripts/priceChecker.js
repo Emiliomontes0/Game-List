@@ -1,16 +1,21 @@
 const axios = require('axios');
-const { Wishlist, Game } = require('../models');
-const { sendEmail } = require('../utils/emailService'); 
+const { Wishlist, Game, User } = require('../models'); // Include User model
+const { sendEmail } = require('../utils/emailService');
 
 const checkPricesAndNotify = async () => {
   try {
     console.log('Starting price check...');
 
+    // Fetch wishlist items with associated game and user
     const wishlistItems = await Wishlist.findAll({
       include: [
         {
           model: Game,
           attributes: ['app_id', 'name', 'price', 'currency', 'discount', 'store_link'],
+        },
+        {
+          model: User,
+          attributes: ['email'], // Fetch user email
         },
       ],
     });
@@ -19,9 +24,12 @@ const checkPricesAndNotify = async () => {
 
     for (const item of wishlistItems) {
       const game = item.Game;
+      const user = item.User; // Access user information
 
-      if (!game) {
-        console.log(`Game not found for wishlist item ID: ${item.id}`);
+      if (!game || !user) {
+        console.log(
+          `Game or user not found for wishlist item ID: ${item.id}`
+        );
         continue;
       }
 
@@ -33,12 +41,8 @@ const checkPricesAndNotify = async () => {
       const data = response.data[game.app_id];
 
       if (data.success && data.data.price_overview) {
-        // Simulate a price drop for testing
-        const currentPrice = 3.99; // Replace with a simulated lower price
-        const discount = 20;       // Replace with a simulated discount percentage
-
-        //const currentPrice = data.data.price_overview.final / 100;
-        //const discount = data.data.price_overview.discount_percent;
+        const currentPrice = data.data.price_overview.final / 100;
+        const discount = data.data.price_overview.discount_percent;
 
         console.log(
           `Current price for ${game.name}: $${currentPrice} (Discount: ${discount}%)`
@@ -55,32 +59,33 @@ const checkPricesAndNotify = async () => {
           (dbPrice !== null && currentPrice < dbPrice) ||
           (dbDiscount !== null && discount > dbDiscount)
         ) {
+          const changes = [];
           if (dbPrice === null && currentPrice !== null) {
-            console.log(`Previously no price, now available for ${game.name}.`);
+            changes.push(`Price now available: $${currentPrice}`);
           }
           if (dbPrice !== null && currentPrice < dbPrice) {
-            console.log(`Price dropped for ${game.name}: ${dbPrice} -> ${currentPrice}`);
+            changes.push(`Price dropped: $${dbPrice} -> $${currentPrice}`);
           }
           if (dbDiscount !== null && discount > dbDiscount) {
-            console.log(
-              `Discount increased for ${game.name}: ${dbDiscount}% -> ${discount}%`
-            );
+            changes.push(`Discount increased: ${dbDiscount}% -> ${discount}%`);
           }
 
-          const userEmail = process.env.EMAIL_USER; 
-          const emailSubject = `Price Drop Alert: ${game.name}`;
+          // Send email notification to the user's email
+          const userEmail = user.email;
+          const emailSubject = `Price Update: ${game.name}`;
           const emailText = `
-            Great news!
+            Good news for your wishlist!
+            ${changes.join('\n')}
             
-            The game "${game.name}" is now available for $${currentPrice} (${discount}% off).
-            You can check it out here: ${game.store_link}
-
-            Happy gaming!
+            Check it out here: ${game.store_link}
           `;
 
           await sendEmail(userEmail, emailSubject, emailText);
-          console.log(`Notification sent to user ${item.user_id} for ${game.name}.`);
+          console.log(
+            `Notification sent to user ${user.email} for ${game.name}.`
+          );
 
+          // Update the database with new price and discount
           await Game.update(
             {
               price: currentPrice,
@@ -94,7 +99,6 @@ const checkPricesAndNotify = async () => {
           console.log(
             `Updated ${game.name} in the database with new price and discount.`
           );
-
         } else {
           console.log(`No significant changes for ${game.name}.`);
         }
