@@ -18,10 +18,14 @@ const wishlistRoutes = require('./routes/wishlistRoutes');
 app.use('/api/wishlist', wishlistRoutes);
 
 //Steam Store Endpoint
-const { checkPricesAndNotify } = require('./services/priceChecker');
-
-// Run the price checker once when the server starts
+const checkPricesAndNotify = require('./scripts/priceChecker');
 checkPricesAndNotify();
+// Run price checker every 30 minutes
+setInterval(() => {
+  console.log('Running scheduled price check...');
+  checkPricesAndNotify();
+}, 1 * 60 * 1000); // 30 minutes
+
 
 
 // Start Server
