@@ -1,5 +1,6 @@
 const axios = require('axios');
 const { Wishlist, Game } = require('../models');
+const { sendEmail } = require('../utils/emailService'); 
 
 const checkPricesAndNotify = async () => {
   try {
@@ -32,13 +33,12 @@ const checkPricesAndNotify = async () => {
       const data = response.data[game.app_id];
 
       if (data.success && data.data.price_overview) {
-        
         // Simulate a price drop for testing
-        //const currentPrice = 3.99; 
-        //const discount = 20; 
+        const currentPrice = 3.99; // Replace with a simulated lower price
+        const discount = 20;       // Replace with a simulated discount percentage
 
-        const currentPrice = data.data.price_overview.final / 100;
-        const discount = data.data.price_overview.discount_percent;
+        //const currentPrice = data.data.price_overview.final / 100;
+        //const discount = data.data.price_overview.discount_percent;
 
         console.log(
           `Current price for ${game.name}: $${currentPrice} (Discount: ${discount}%)`
@@ -67,16 +67,30 @@ const checkPricesAndNotify = async () => {
             );
           }
 
+          const userEmail = process.env.EMAIL_USER; 
+          const emailSubject = `Price Drop Alert: ${game.name}`;
+          const emailText = `
+            Great news!
+            
+            The game "${game.name}" is now available for $${currentPrice} (${discount}% off).
+            You can check it out here: ${game.store_link}
+
+            Happy gaming!
+          `;
+
+          await sendEmail(userEmail, emailSubject, emailText);
+          console.log(`Notification sent to user ${item.user_id} for ${game.name}.`);
+
           await Game.update(
             {
               price: currentPrice,
               discount: discount,
             },
             {
-              where: { app_id: game.app_id }, 
+              where: { app_id: game.app_id },
             }
           );
-          
+
           console.log(
             `Updated ${game.name} in the database with new price and discount.`
           );

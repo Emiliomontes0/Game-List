@@ -1,0 +1,15 @@
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# Cache
+.cache/
+
+# Other sensitive or unnecessary files
+uploads/
+debug/
