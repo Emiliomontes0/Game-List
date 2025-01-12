@@ -27,13 +27,20 @@ module.exports = (sequelize, DataTypes) => {
       },
       notification_frequency: {
         type: DataTypes.STRING,
-        defaultValue: 'daily',
+        defaultValue: 'weekly', // Default to 'weekly'
+        validate: {
+          isIn: {
+            args: [['weekly', 'monthly', 'every 4 months']],
+            msg: 'Notification frequency must be one of: weekly, monthly, or every 4 months',
+          },
+        },
       },
+      
     },
     {
       sequelize,
       modelName: 'NotificationPreferences',
-      tableName: 'notificationpreferences', // Use lowercase table name
+      tableName: 'notificationpreferences', 
       timestamps: true,
       createdAt: 'created_at',
       updatedAt: 'updated_at',

@@ -28,8 +28,8 @@ module.exports = (sequelize, DataTypes) => {
       sequelize,
       modelName: 'NotificationLog',
       tableName: 'NotificationLogs',
-      timestamps: false, // Enable Sequelize timestamps
-      underscored: true, // Use snake_case column names
+      timestamps: false, 
+      underscored: true, 
     }
   );  
   return NotificationLog;
