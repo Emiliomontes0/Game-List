@@ -2,6 +2,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 require('dotenv').config();
+const cron = require('node-cron');
+
 
 const app = express();
 
@@ -16,15 +18,19 @@ const userRoutes = require('./routes/userRoutes');
 app.use('/api/users', userRoutes);
 const wishlistRoutes = require('./routes/wishlistRoutes');
 app.use('/api/wishlist', wishlistRoutes);
+const notificationRoutes = require('./routes/notifications');
+app.use('/api/notifications', notificationRoutes);
+
 
 //Steam Store Endpoint
 const checkPricesAndNotify = require('./scripts/priceChecker');
-checkPricesAndNotify();
+//checkPricesAndNotify();
 // Run price checker every 30 minutes
-setInterval(() => {
+cron.schedule('* * * * *', () => {
   console.log('Running scheduled price check...');
   checkPricesAndNotify();
-}, 1 * 60 * 1000); // 30 minutes
+});
+//console.log('Server is running, and price checks are scheduled every minute.');
 
 
 

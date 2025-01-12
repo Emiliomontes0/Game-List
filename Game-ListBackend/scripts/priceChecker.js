@@ -1,6 +1,7 @@
 const axios = require('axios');
-const { Wishlist, Game, User } = require('../models'); // Include User model
+const { Wishlist, Game, User, NotificationLog } = require('../models'); // Include NotificationLog model
 const { sendEmail } = require('../utils/emailService');
+console.log('Price checker script started...');
 
 const checkPricesAndNotify = async () => {
   try {
@@ -15,21 +16,29 @@ const checkPricesAndNotify = async () => {
         },
         {
           model: User,
-          attributes: ['email'], // Fetch user email
+          attributes: ['email', 'notification_preferences'], // Fetch user email and preferences
         },
       ],
     });
 
-    console.log('Wishlist items:', wishlistItems);
+    console.log(`Total wishlist items fetched: ${wishlistItems.length}`);
 
     for (const item of wishlistItems) {
       const game = item.Game;
       const user = item.User; // Access user information
 
       if (!game || !user) {
-        console.log(
-          `Game or user not found for wishlist item ID: ${item.id}`
-        );
+        console.log(`Game or user not found for wishlist item ID: ${item.id}`);
+        continue;
+      }
+
+      const preferences = user.notification_preferences || {};
+      const notifyPriceDrop = preferences.notify_price_drop ?? true;
+      const notifyThreshold = preferences.notify_discount_threshold ?? 0;
+
+      // Skip notification if user disabled price drop notifications
+      if (!notifyPriceDrop) {
+        console.log(`User ${user.email} disabled price drop notifications.`);
         continue;
       }
 
@@ -41,8 +50,11 @@ const checkPricesAndNotify = async () => {
       const data = response.data[game.app_id];
 
       if (data.success && data.data.price_overview) {
-        const currentPrice = data.data.price_overview.final / 100;
-        const discount = data.data.price_overview.discount_percent;
+
+        const currentPrice = 0.99; // API Price
+        const discount = 80; // API Discount
+        //const currentPrice = data.data.price_overview.final / 100; // API Price
+        //const discount = data.data.price_overview.discount_percent; // API Discount
 
         console.log(
           `Current price for ${game.name}: $${currentPrice} (Discount: ${discount}%)`
@@ -54,19 +66,30 @@ const checkPricesAndNotify = async () => {
         console.log(`DB Price: ${dbPrice}, DB Discount: ${dbDiscount}`);
         console.log(`API Price: ${currentPrice}, API Discount: ${discount}`);
 
-        if (
-          (dbPrice === null && currentPrice !== null) || 
+        const alreadyNotified = await NotificationLog.findOne({
+          where: {
+            user_id: item.user_id,
+            game_id: game.app_id,
+            email_sent: true,
+          },
+          order: [['createdAt', 'DESC']], // Get the latest notification
+        });
+
+        const significantChange =
           (dbPrice !== null && currentPrice < dbPrice) ||
-          (dbDiscount !== null && discount > dbDiscount)
-        ) {
+          (dbDiscount !== null && discount > dbDiscount && discount >= notifyThreshold);
+
+        const alreadyNotifiedForCurrentChange =
+          alreadyNotified &&
+          alreadyNotified.message.includes(`Price dropped: $${dbPrice} -> $${currentPrice}`) &&
+          alreadyNotified.message.includes(`Discount increased: ${dbDiscount}% -> ${discount}%`);
+
+        if (significantChange && !alreadyNotifiedForCurrentChange) {
           const changes = [];
-          if (dbPrice === null && currentPrice !== null) {
-            changes.push(`Price now available: $${currentPrice}`);
-          }
           if (dbPrice !== null && currentPrice < dbPrice) {
             changes.push(`Price dropped: $${dbPrice} -> $${currentPrice}`);
           }
-          if (dbDiscount !== null && discount > dbDiscount) {
+          if (dbDiscount !== null && discount > dbDiscount && discount >= notifyThreshold) {
             changes.push(`Discount increased: ${dbDiscount}% -> ${discount}%`);
           }
 
@@ -81,9 +104,15 @@ const checkPricesAndNotify = async () => {
           `;
 
           await sendEmail(userEmail, emailSubject, emailText);
-          console.log(
-            `Notification sent to user ${user.email} for ${game.name}.`
-          );
+          console.log(`Notification sent to user ${user.email} for ${game.name}.`);
+
+          // Log the notification
+          await NotificationLog.create({
+            user_id: item.user_id,
+            game_id: game.app_id,
+            email_sent: true,
+            message: changes.join(', '),
+          });
 
           // Update the database with new price and discount
           await Game.update(
@@ -96,9 +125,7 @@ const checkPricesAndNotify = async () => {
             }
           );
 
-          console.log(
-            `Updated ${game.name} in the database with new price and discount.`
-          );
+          console.log(`Updated ${game.name} in the database with new price and discount.`);
         } else {
           console.log(`No significant changes for ${game.name}.`);
         }
@@ -106,12 +133,16 @@ const checkPricesAndNotify = async () => {
         console.log(`No data found for App ID: ${game.app_id}`);
       }
 
+      // Add a delay to avoid hitting API rate limits
       await new Promise((resolve) => setTimeout(resolve, 500));
     }
+
     console.log('Price check completed.');
   } catch (error) {
     console.error('Error checking prices:', error.message);
   }
 };
-
 module.exports = checkPricesAndNotify;
+
+// Execute the function
+checkPricesAndNotify();

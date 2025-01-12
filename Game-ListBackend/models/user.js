@@ -3,6 +3,7 @@ const { Model } = require('sequelize');
 module.exports = (sequelize, DataTypes) => {
   class User extends Model {
     static associate(models) {
+      // Define associations here if needed
     }
   }
   User.init(
@@ -22,9 +23,9 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
       },
       profile_image: DataTypes.STRING,
-      notification_preference: {
+      notification_preferences: { // Updated column name
         type: DataTypes.JSON,
-        defaultValue: [],
+        defaultValue: {}, // Default to an empty object
       },
       wishlist: {
         type: DataTypes.JSON,
@@ -40,9 +41,9 @@ module.exports = (sequelize, DataTypes) => {
     {
       sequelize,
       modelName: 'User',
-      tableName: 'Users', 
-      timestamps: true,  
-      underscored: false, 
+      tableName: 'Users', // Explicitly match the database table name
+      timestamps: true, // Enable createdAt and updatedAt
+      underscored: false, // Keep camelCase column names
     }
   );
   return User;

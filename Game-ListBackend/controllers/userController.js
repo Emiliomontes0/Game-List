@@ -48,3 +48,24 @@ exports.loginUser = async (req, res) => {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
 };
+exports.updateNotificationPreferences = async (req, res) => {
+  const userId = req.user.id; // From auth middleware
+  const { notify_price_drop, notify_discount_threshold } = req.body;
+
+  try {
+    const user = await User.findByPk(userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    user.notification_preferences = {
+      ...user.notification_preferences,
+      notify_price_drop: notify_price_drop ?? true,
+      notify_discount_threshold: notify_discount_threshold ?? 0,
+    };
+
+    await user.save();
+    res.status(200).json({ message: 'Preferences updated successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
