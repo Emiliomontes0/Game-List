@@ -23,6 +23,8 @@ const checkPricesAndNotify = async () => {
 
     console.log(`Total wishlist items fetched: ${wishlistItems.length}`);
 
+    const userNotifications = {}; // Group notifications by user
+
     for (const item of wishlistItems) {
       const game = item.Game;
       const user = item.User; // Access user information
@@ -36,7 +38,6 @@ const checkPricesAndNotify = async () => {
       const notifyPriceDrop = preferences.notify_price_drop ?? true;
       const notifyThreshold = preferences.notify_discount_threshold ?? 0;
 
-      // Skip notification if user disabled price drop notifications
       if (!notifyPriceDrop) {
         console.log(`User ${user.email} disabled price drop notifications.`);
         continue;
@@ -50,21 +51,13 @@ const checkPricesAndNotify = async () => {
       const data = response.data[game.app_id];
 
       if (data.success && data.data.price_overview) {
-
         const currentPrice = 0.99; // API Price
         const discount = 80; // API Discount
-        //const currentPrice = data.data.price_overview.final / 100; // API Price
-        //const discount = data.data.price_overview.discount_percent; // API Discount
-
-        console.log(
-          `Current price for ${game.name}: $${currentPrice} (Discount: ${discount}%)`
-        );
+        // const currentPrice = data.data.price_overview.final / 100;
+        // const discount = data.data.price_overview.discount_percent;
 
         const dbPrice = game.price;
         const dbDiscount = game.discount;
-
-        console.log(`DB Price: ${dbPrice}, DB Discount: ${dbDiscount}`);
-        console.log(`API Price: ${currentPrice}, API Discount: ${discount}`);
 
         const alreadyNotified = await NotificationLog.findOne({
           where: {
@@ -93,39 +86,22 @@ const checkPricesAndNotify = async () => {
             changes.push(`Discount increased: ${dbDiscount}% -> ${discount}%`);
           }
 
-          // Send email notification to the user's email
-          const userEmail = user.email;
-          const emailSubject = `Price Update: ${game.name}`;
-          const emailText = `
-            Good news for your wishlist!
-            ${changes.join('\n')}
-            
-            Check it out here: ${game.store_link}
-          `;
+          // Group changes by user email
+          if (!userNotifications[user.email]) {
+            userNotifications[user.email] = [];
+          }
 
-          await sendEmail(userEmail, emailSubject, emailText);
-          console.log(`Notification sent to user ${user.email} for ${game.name}.`);
-
-          // Log the notification
-          await NotificationLog.create({
-            user_id: item.user_id,
-            game_id: game.app_id,
-            email_sent: true,
-            message: changes.join(', '),
+          userNotifications[user.email].push({
+            gameName: game.name,
+            changes: changes.join(', '),
+            storeLink: game.store_link,
           });
 
-          // Update the database with new price and discount
+          // Update the database for this game
           await Game.update(
-            {
-              price: currentPrice,
-              discount: discount,
-            },
-            {
-              where: { app_id: game.app_id },
-            }
+            { price: currentPrice, discount: discount },
+            { where: { app_id: game.app_id } }
           );
-
-          console.log(`Updated ${game.name} in the database with new price and discount.`);
         } else {
           console.log(`No significant changes for ${game.name}.`);
         }
@@ -135,6 +111,31 @@ const checkPricesAndNotify = async () => {
 
       // Add a delay to avoid hitting API rate limits
       await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    // Send bulk emails
+    for (const [email, notifications] of Object.entries(userNotifications)) {
+      const emailBody = notifications
+        .map(
+          (n) => `- ${n.gameName}: ${n.changes}\n  Link: ${n.storeLink}`
+        )
+        .join('\n\n');
+
+      const emailSubject = 'Your Wishlist Discounts Are Here!';
+      await sendEmail(email, emailSubject, emailBody);
+
+      console.log(`Notification sent to ${email} with ${notifications.length} items.`);
+
+      // Log notifications in the database
+      for (const notification of notifications) {
+        const game = await Game.findOne({ where: { name: notification.gameName } });
+        await NotificationLog.create({
+          user_id: wishlistItems.find((item) => item.Game.name === notification.gameName).user_id,
+          game_id: game.app_id,
+          email_sent: true,
+          message: notification.changes,
+        });
+      }
     }
 
     console.log('Price check completed.');

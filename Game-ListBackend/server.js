@@ -3,6 +3,7 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 require('dotenv').config();
 const cron = require('node-cron');
+const { apiLimiter } = require('./middleware/rateLimiter');
 
 
 const app = express();
@@ -12,6 +13,8 @@ const app = express();
 app.use(cors());
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
+app.use('/api/', apiLimiter);//limit api request 
+
 
 // Routes
 const userRoutes = require('./routes/userRoutes');

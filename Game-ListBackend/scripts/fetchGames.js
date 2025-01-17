@@ -18,14 +18,14 @@ const fetchAllApps = async (limit = 100) => {
   
 
 
-const fetchGameDetails = async (appId, retries = 3) => {
+  const fetchGameDetails = async (appId, retries = 3) => {
     try {
       const response = await axios.get(`https://store.steampowered.com/api/appdetails?appids=${appId}`);
       const gameData = response.data[appId];
   
       if (gameData.success) {
         const details = gameData.data;
-  
+        console.log(`Raw Data for App ID ${appId}:`, JSON.stringify(gameData, null, 2));
         if (details.type === 'demo') {
           console.log(`Skipping demo: ${details.name}`);
           return null;
@@ -43,17 +43,29 @@ const fetchGameDetails = async (appId, retries = 3) => {
           return null;
         }
   
-        const finalPrice = price ? price.final / 100 : null; 
+        const finalPrice = price ? price.final / 100 : null;
         const currency = price ? price.currency : 'USD';
         const discount = price ? price.discount_percent : 0;
+  
+        // Check for sale duration (hypothetical sale_end_time field)
+        const saleEndTime = details.sale_end_time || null; // Replace with actual field if it exists
+        let saleEndDate = null;
+  
+        if (saleEndTime) {
+          saleEndDate = new Date(saleEndTime * 1000); // Convert UNIX timestamp to date
+          console.log(`Sale for ${details.name} ends on: ${saleEndDate}`);
+        } else {
+          console.log(`No sale duration found for ${details.name}`);
+        }
   
         return {
           app_id: appId,
           name: details.name,
-          price: finalPrice, 
+          price: finalPrice,
           currency: currency,
           discount: discount,
           store_link: `https://store.steampowered.com/app/${appId}`,
+          sale_end_date: saleEndDate, // Include sale end date in the return object
         };
       } else {
         return null;
@@ -70,6 +82,9 @@ const fetchGameDetails = async (appId, retries = 3) => {
     }
   };
   
+  fetchGameDetails(837470).then((result) => {
+    console.log('Game Details:', result);
+  });
   
 const populateGames = async () => {
     try {
